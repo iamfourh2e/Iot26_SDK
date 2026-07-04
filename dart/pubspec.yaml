@@ -1,0 +1,20 @@
+name: iot26_client
+description: >
+  Dart/Flutter client library for the IoT26 IoT platform.
+  Publishes sensor readings and receives downlink commands over MQTT.
+version: 1.0.0
+homepage: https://github.com/iamfourh2e/IOT2026
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+  flutter: ">=3.10.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  mqtt_client: ^10.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  lints: ^4.0.0

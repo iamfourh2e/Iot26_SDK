@@ -1,0 +1,31 @@
+{
+  "name": "iot26-client",
+  "version": "1.0.0",
+  "description": "Node.js client library for the IoT26 IoT platform — publishes sensor readings and receives downlink commands over MQTT.",
+  "main": "index.js",
+  "exports": {
+    ".": {
+      "import": "./index.mjs",
+      "require": "./index.js"
+    }
+  },
+  "keywords": ["iot26", "mqtt", "iot", "sensor", "edge"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/iamfourh2e/IOT2026"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "mqtt": "^5.6.0"
+  },
+  "devDependencies": {
+    "jest": "^29.0.0"
+  },
+  "scripts": {
+    "test": "jest",
+    "example": "node example.js"
+  }
+}

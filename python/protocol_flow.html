@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>IoT26 — Protocol Flow Diagram</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:         #0a0d14;
+    --surface:    #111520;
+    --surface2:   #181d2c;
+    --border:     #232942;
+    --text:       #e2e8f8;
+    --muted:      #64748b;
+    --accent:     #4f8ef7;
+
+    --modbus-tcp: #4f8ef7;
+    --modbus-rtu: #6366f1;
+    --i2c:        #22d3a0;
+    --spi:        #f59e0b;
+    --analog:     #f97316;
+    --onewire:    #ec4899;
+    --mqtt:       #a78bfa;
+
+    --read-color:  #22d3a0;
+    --write-color: #f97316;
+    --server-color:#4f8ef7;
+    --alarm-color: #ef4444;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    padding: 2rem;
+  }
+
+  h1 {
+    text-align: center;
+    font-size: 1.9rem;
+    font-weight: 700;
+    letter-spacing: -0.04em;
+    margin-bottom: 0.4rem;
+    background: linear-gradient(135deg, #4f8ef7, #22d3a0);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .subtitle {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.88rem;
+    margin-bottom: 2.8rem;
+    font-weight: 400;
+  }
+
+  /* ── Tab selector ──────────────────────────────────────────────── */
+  .tabs {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    margin-bottom: 2rem;
+  }
+  .tab {
+    padding: 0.5rem 1.4rem;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all .2s;
+  }
+  .tab.active-read  { border-color: var(--read-color);  color: var(--read-color);  background: #22d3a018; }
+  .tab.active-write { border-color: var(--write-color); color: var(--write-color); background: #f9731618; }
+  .tab.active-full  { border-color: var(--accent);      color: var(--accent);      background: #4f8ef718; }
+
+  /* ── Legend ───────────────────────────────────────────────────── */
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 0.7rem;
+    justify-content: center; margin-bottom: 2.2rem;
+  }
+  .legend-item {
+    display: flex; align-items: center; gap: 0.4rem;
+    font-size: 0.78rem; color: var(--muted);
+  }
+  .legend-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+  }
+
+  /* ── Diagram panels ────────────────────────────────────────────── */
+  .diagram { display: none; }
+  .diagram.visible { display: block; }
+
+  /* ── Flow canvas ──────────────────────────────────────────────── */
+  .flow-wrap {
+    overflow-x: auto;
+    padding-bottom: 1rem;
+  }
+
+  svg text { font-family: 'Inter', sans-serif; }
+  svg .mono { font-family: 'JetBrains Mono', monospace; }
+
+  /* ── Protocol cards below diagrams ───────────────────────────── */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 1rem;
+    margin-top: 2.5rem;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.1rem 1.2rem;
+  }
+  .card-header {
+    display: flex; align-items: center; gap: 0.5rem;
+    margin-bottom: 0.7rem;
+  }
+  .card-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .card-title { font-weight: 600; font-size: 0.9rem; }
+  .card-row {
+    display: flex; gap: 0.5rem; align-items: flex-start;
+    font-size: 0.78rem; color: var(--muted); margin-bottom: 0.35rem;
+    line-height: 1.5;
+  }
+  .card-label {
+    font-size: 0.7rem; font-weight: 600;
+    padding: 1px 7px; border-radius: 999px; flex-shrink: 0;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .label-read  { background: #22d3a018; color: #22d3a0; border: 1px solid #22d3a040; }
+  .label-write { background: #f9731618; color: #f97316; border: 1px solid #f9731640; }
+  .label-note  { background: #4f8ef718; color: #4f8ef7; border: 1px solid #4f8ef740; }
+
+  @keyframes flow {
+    0%   { stroke-dashoffset: 100; }
+    100% { stroke-dashoffset: 0; }
+  }
+  .flow-line {
+    stroke-dasharray: 6 4;
+    animation: flow 1.5s linear infinite;
+  }
+  .flow-line-slow {
+    stroke-dasharray: 6 4;
+    animation: flow 2.5s linear infinite;
+  }
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.3; }
+  }
+  .pulse { animation: pulse-dot 1.4s ease-in-out infinite; }
+</style>
+</head>
+<body>
+
+<h1>IoT26 — Protocol Data Flow</h1>
+<p class="subtitle">How sensors talk to the server — Read (uplink) &amp; Write (downlink)</p>
+
+<div class="tabs">
+  <div class="tab active-read"  onclick="show('read')"  id="tab-read">⬆ Read / Uplink</div>
+  <div class="tab"              onclick="show('write')" id="tab-write">⬇ Write / Downlink</div>
+  <div class="tab"              onclick="show('full')"  id="tab-full">⬌ Full Picture</div>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:var(--modbus-tcp)"></div>Modbus TCP</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--modbus-rtu)"></div>Modbus RTU</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--i2c)"></div>I²C</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--spi)"></div>SPI</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--analog)"></div>Analog ADC</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--onewire)"></div>1-Wire</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--mqtt)"></div>MQTT Direct</div>
+</div>
+
+<!-- ═══════════════════════════  READ FLOW  ═══════════════════════════ -->
+<div class="diagram visible" id="diagram-read">
+<div class="flow-wrap">
+<svg viewBox="0 0 1100 560" width="100%" style="max-width:1100px;display:block;margin:0 auto;">
+  <defs>
+    <marker id="arr-g" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#22d3a0"/>
+    </marker>
+    <marker id="arr-r" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#ef4444"/>
+    </marker>
+    <marker id="arr-b" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#4f8ef7"/>
+    </marker>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- ── Column headers ──────────────────────────────────────── -->
+  <text x="80"  y="28" text-anchor="middle" font-size="11" fill="#64748b" font-weight="600">SENSORS</text>
+  <text x="290" y="28" text-anchor="middle" font-size="11" fill="#64748b" font-weight="600">EDGE GATEWAY</text>
+  <text x="550" y="28" text-anchor="middle" font-size="11" fill="#64748b" font-weight="600">MQTT BROKER</text>
+  <text x="760" y="28" text-anchor="middle" font-size="11" fill="#64748b" font-weight="600">IOT26 BACKEND</text>
+  <text x="1000" y="28" text-anchor="middle" font-size="11" fill="#64748b" font-weight="600">DASHBOARD</text>
+
+  <!-- ── Column separators ───────────────────────────────────── -->
+  <line x1="180" y1="14" x2="180" y2="545" stroke="#1e2535" stroke-width="1"/>
+  <line x1="420" y1="14" x2="420" y2="545" stroke="#1e2535" stroke-width="1"/>
+  <line x1="640" y1="14" x2="640" y2="545" stroke="#1e2535" stroke-width="1"/>
+  <line x1="870" y1="14" x2="870" y2="545" stroke="#1e2535" stroke-width="1"/>
+
+  <!-- ═══════════════════  PROTOCOL SENSORS  ═════════════════════ -->
+  <!-- Modbus TCP sensor -->
+  <rect x="10" y="45"  width="130" height="36" rx="8" fill="#4f8ef720" stroke="#4f8ef7" stroke-width="1.2"/>
+  <text x="75" y="58"  text-anchor="middle" font-size="10" fill="#4f8ef7" font-weight="600">Modbus TCP Slave</text>
+  <text x="75" y="72"  text-anchor="middle" font-size="9"  fill="#7ba7f0">192.168.x.x:502</text>
+
+  <!-- Modbus RTU sensor -->
+  <rect x="10" y="97"  width="130" height="36" rx="8" fill="#6366f120" stroke="#6366f1" stroke-width="1.2"/>
+  <text x="75" y="110" text-anchor="middle" font-size="10" fill="#6366f1" font-weight="600">Modbus RTU Slave</text>
+  <text x="75" y="124" text-anchor="middle" font-size="9"  fill="#9899f5">RS-485 /dev/ttyUSB0</text>
+
+  <!-- I2C sensor -->
+  <rect x="10" y="149" width="130" height="36" rx="8" fill="#22d3a020" stroke="#22d3a0" stroke-width="1.2"/>
+  <text x="75" y="162" text-anchor="middle" font-size="10" fill="#22d3a0" font-weight="600">I²C Sensor</text>
+  <text x="75" y="176" text-anchor="middle" font-size="9"  fill="#7beecf">BME280 @ 0x76</text>
+
+  <!-- SPI sensor -->
+  <rect x="10" y="201" width="130" height="36" rx="8" fill="#f59e0b20" stroke="#f59e0b" stroke-width="1.2"/>
+  <text x="75" y="214" text-anchor="middle" font-size="10" fill="#f59e0b" font-weight="600">SPI Sensor</text>
+  <text x="75" y="228" text-anchor="middle" font-size="9"  fill="#fbc84f">MAX31855 /dev/spidev0.0</text>
+
+  <!-- Analog sensor -->
+  <rect x="10" y="253" width="130" height="36" rx="8" fill="#f9731620" stroke="#f97316" stroke-width="1.2"/>
+  <text x="75" y="266" text-anchor="middle" font-size="10" fill="#f97316" font-weight="600">Analog Sensor</text>
+  <text x="75" y="280" text-anchor="middle" font-size="9"  fill="#fc9c5a">4–20mA → MCP3208</text>
+
+  <!-- 1-Wire sensor -->
+  <rect x="10" y="305" width="130" height="36" rx="8" fill="#ec489920" stroke="#ec4899" stroke-width="1.2"/>
+  <text x="75" y="318" text-anchor="middle" font-size="10" fill="#ec4899" font-weight="600">1-Wire Sensor</text>
+  <text x="75" y="332" text-anchor="middle" font-size="9"  fill="#f380c0">DS18B20 GPIO4</text>
+
+  <!-- MQTT Direct sensor -->
+  <rect x="10" y="357" width="130" height="52" rx="8" fill="#a78bfa20" stroke="#a78bfa" stroke-width="1.2"/>
+  <text x="75" y="372" text-anchor="middle" font-size="10" fill="#a78bfa" font-weight="600">MQTT Direct Node</text>
+  <text x="75" y="386" text-anchor="middle" font-size="9"  fill="#c4adfd">ESP32 / Commercial</text>
+  <text x="75" y="400" text-anchor="middle" font-size="9"  fill="#c4adfd">self-publishes</text>
+
+  <!-- ═══════════════════  GATEWAY BOX  ═══════════════════════════ -->
+  <rect x="192" y="40" width="216" height="384" rx="12" fill="#111827" stroke="#232942" stroke-width="1.5"/>
+  <text x="300" y="58" text-anchor="middle" font-size="11" fill="#94a3b8" font-weight="600">iot26_edge / IoT26Gateway</text>
+
+  <!-- Gateway sub-boxes -->
+  <rect x="205" y="66" width="190" height="30" rx="6" fill="#4f8ef712" stroke="#4f8ef750" stroke-width="1"/>
+  <text x="300" y="76"  text-anchor="middle" font-size="8.5" fill="#7ba7f0" font-weight="500">ModbusTCPDriver.read()</text>
+  <text x="300" y="88"  text-anchor="middle" font-size="7.5" fill="#4f8ef780">FC03/04 → reg → int → float</text>
+
+  <rect x="205" y="102" width="190" height="30" rx="6" fill="#6366f112" stroke="#6366f150" stroke-width="1"/>
+  <text x="300" y="112" text-anchor="middle" font-size="8.5" fill="#9899f5" font-weight="500">ModbusRTUDriver.read()</text>
+  <text x="300" y="124" text-anchor="middle" font-size="7.5" fill="#6366f180">serial frame → scaled value</text>
+
+  <rect x="205" y="138" width="190" height="30" rx="6" fill="#22d3a012" stroke="#22d3a050" stroke-width="1"/>
+  <text x="300" y="148" text-anchor="middle" font-size="8.5" fill="#22d3a0" font-weight="500">I2CDriver.read()</text>
+  <text x="300" y="160" text-anchor="middle" font-size="7.5" fill="#22d3a080">write cmd → delay → read N bytes</text>
+
+  <rect x="205" y="174" width="190" height="30" rx="6" fill="#f59e0b12" stroke="#f59e0b50" stroke-width="1"/>
+  <text x="300" y="184" text-anchor="middle" font-size="8.5" fill="#f59e0b" font-weight="500">SPIDriver.read()</text>
+  <text x="300" y="196" text-anchor="middle" font-size="7.5" fill="#f59e0b80">xfer2(cmd) → raw bytes → float</text>
+
+  <rect x="205" y="210" width="190" height="30" rx="6" fill="#f9731612" stroke="#f9731650" stroke-width="1"/>
+  <text x="300" y="220" text-anchor="middle" font-size="8.5" fill="#f97316" font-weight="500">AnalogDriver.read()</text>
+  <text x="300" y="232" text-anchor="middle" font-size="7.5" fill="#f9731680">MCP3208 SPI → 12-bit → float</text>
+
+  <rect x="205" y="246" width="190" height="30" rx="6" fill="#ec489912" stroke="#ec489950" stroke-width="1"/>
+  <text x="300" y="256" text-anchor="middle" font-size="8.5" fill="#ec4899" font-weight="500">OneWireDriver.read()</text>
+  <text x="300" y="268" text-anchor="middle" font-size="7.5" fill="#ec489980">sysfs/temperature → millideg</text>
+
+  <rect x="205" y="282" width="190" height="40" rx="6" fill="#a78bfa12" stroke="#a78bfa50" stroke-width="1"/>
+  <text x="300" y="295" text-anchor="middle" font-size="8.5" fill="#a78bfa" font-weight="500">MQTTDirectDriver.read()</text>
+  <text x="300" y="307" text-anchor="middle" font-size="7.5" fill="#a78bfa80">subscribe → cache latest</text>
+  <text x="300" y="319" text-anchor="middle" font-size="7.5" fill="#a78bfa80">json_path extract → float</text>
+
+  <!-- Apply scale label -->
+  <rect x="205" y="334" width="190" height="36" rx="6" fill="#ffffff08" stroke="#ffffff15" stroke-width="1"/>
+  <text x="300" y="348" text-anchor="middle" font-size="8.5" fill="#94a3b8" font-weight="600">apply_scale(raw)</text>
+  <text x="300" y="362" text-anchor="middle" font-size="7.5" fill="#64748b">raw × scale_factor + offset</text>
+
+  <!-- Publish label -->
+  <rect x="205" y="378" width="190" height="36" rx="6" fill="#22d3a015" stroke="#22d3a040" stroke-width="1"/>
+  <text x="300" y="392" text-anchor="middle" font-size="8.5" fill="#22d3a0" font-weight="600">publish_batch(readings)</text>
+  <text x="300" y="406" text-anchor="middle" font-size="7.5" fill="#22d3a080">devices/{id}/ingest  QoS 1</text>
+
+  <!-- ═══════════════════  MQTT BROKER  ══════════════════════════ -->
+  <rect x="455" y="40" width="170" height="110" rx="12" fill="#111827" stroke="#232942" stroke-width="1.5"/>
+  <text x="540" y="60" text-anchor="middle" font-size="11" fill="#94a3b8" font-weight="600">Mosquitto Broker</text>
+  <text x="540" y="76" text-anchor="middle" font-size="9" fill="#64748b">:1883</text>
+  <rect x="466" y="84" width="148" height="24" rx="5" fill="#22d3a012" stroke="#22d3a040" stroke-width="1"/>
+  <text x="540" y="100" text-anchor="middle" font-size="8" fill="#22d3a0" class="mono">devices/{id}/ingest</text>
+  <rect x="466" y="112" width="148" height="24" rx="5" fill="#a78bfa12" stroke="#a78bfa40" stroke-width="1"/>
+  <text x="540" y="128" text-anchor="middle" font-size="8" fill="#a78bfa" class="mono">iot26/sensors/+/readings</text>
+
+  <!-- ═══════════════════  BACKEND BOX  ══════════════════════════ -->
+  <rect x="670" y="40" width="192" height="384" rx="12" fill="#111827" stroke="#232942" stroke-width="1.5"/>
+  <text x="766" y="60" text-anchor="middle" font-size="11" fill="#94a3b8" font-weight="600">IoT26 Backend (Go)</text>
+
+  <rect x="682" y="70" width="168" height="34" rx="6" fill="#4f8ef712" stroke="#4f8ef750" stroke-width="1"/>
+  <text x="766" y="83" text-anchor="middle" font-size="8.5" fill="#7ba7f0" font-weight="500">ingest/mqtt.go</text>
+  <text x="766" y="96" text-anchor="middle" font-size="7.5" fill="#4f8ef780">validate device token → sensor lookup</text>
+
+  <rect x="682" y="110" width="168" height="34" rx="6" fill="#22d3a012" stroke="#22d3a050" stroke-width="1"/>
+  <text x="766" y="124" text-anchor="middle" font-size="8.5" fill="#22d3a0" font-weight="500">sensor/server.go</text>
+  <text x="766" y="137" text-anchor="middle" font-size="7.5" fill="#22d3a080">gRPC IngestReadings → TimescaleDB</text>
+
+  <rect x="682" y="150" width="168" height="50" rx="6" fill="#ef444412" stroke="#ef444450" stroke-width="1"/>
+  <text x="766" y="164" text-anchor="middle" font-size="8.5" fill="#ef4444" font-weight="600">alarm/evaluator.go</text>
+  <text x="766" y="177" text-anchor="middle" font-size="7.5" fill="#ef444480">value &gt; alarm_high?</text>
+  <text x="766" y="189" text-anchor="middle" font-size="7.5" fill="#ef444480">INSERT alarm_events</text>
+  <text x="766" y="201" text-anchor="middle" font-size="7.5" fill="#ef444480">PUBLISH alerts/{org}/{sensor}</text>
+
+  <rect x="682" y="206" width="168" height="30" rx="6" fill="#4f8ef712" stroke="#4f8ef750" stroke-width="1"/>
+  <text x="766" y="219" text-anchor="middle" font-size="8.5" fill="#7ba7f0" font-weight="500">TimescaleDB</text>
+  <text x="766" y="231" text-anchor="middle" font-size="7.5" fill="#4f8ef780">sensor_readings hypertable</text>
+
+  <rect x="682" y="242" width="168" height="30" rx="6" fill="#22d3a012" stroke="#22d3a050" stroke-width="1"/>
+  <text x="766" y="255" text-anchor="middle" font-size="8.5" fill="#22d3a0" font-weight="500">dashboard/hub.go</text>
+  <text x="766" y="267" text-anchor="middle" font-size="7.5" fill="#22d3a080">fan-out → WebSocket clients</text>
+
+  <!-- ═══════════════════  DASHBOARD  ═══════════════════════════ -->
+  <rect x="900" y="40" width="185" height="120" rx="12" fill="#111827" stroke="#232942" stroke-width="1.5"/>
+  <text x="992" y="60" text-anchor="middle" font-size="11" fill="#94a3b8" font-weight="600">React Dashboard</text>
+  <rect x="912" y="70" width="161" height="24" rx="6" fill="#22d3a012" stroke="#22d3a040" stroke-width="1"/>
+  <text x="992" y="86" text-anchor="middle" font-size="8.5" fill="#22d3a0">Live Charts (WebSocket)</text>
+  <rect x="912" y="98" width="161" height="24" rx="6" fill="#ef444412" stroke="#ef444440" stroke-width="1"/>
+  <text x="992" y="114" text-anchor="middle" font-size="8.5" fill="#ef4444">Alarm Panel + Acknowledge</text>
+  <rect x="912" y="126" width="161" height="24" rx="6" fill="#4f8ef712" stroke="#4f8ef740" stroke-width="1"/>
+  <text x="992" y="142" text-anchor="middle" font-size="8.5" fill="#7ba7f0">Sensor History Charts</text>
+
+  <!-- ═══════════════════  FLOW ARROWS  ═════════════════════════ -->
+  <!-- Sensor → Gateway (per protocol) -->
+  <line x1="141" y1="63"  x2="192" y2="81"  stroke="#4f8ef7" stroke-width="1.5" marker-end="url(#arr-b)"/>
+  <line x1="141" y1="115" x2="192" y2="117" stroke="#6366f1" stroke-width="1.5" marker-end="url(#arr-b)"/>
+  <line x1="141" y1="167" x2="192" y2="153" stroke="#22d3a0" stroke-width="1.5" marker-end="url(#arr-g)"/>
+  <line x1="141" y1="219" x2="192" y2="189" stroke="#f59e0b" stroke-width="1.5" marker-end="url(#arr-b)"/>
+  <line x1="141" y1="271" x2="192" y2="225" stroke="#f97316" stroke-width="1.5" marker-end="url(#arr-b)"/>
+  <line x1="141" y1="323" x2="192" y2="261" stroke="#ec4899" stroke-width="1.5" marker-end="url(#arr-b)"/>
+  <!-- MQTT Direct goes directly to broker (dashed) -->
+  <line x1="141" y1="383" x2="455" y2="128" stroke="#a78bfa" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#arr-b)"/>
+  <text x="260" y="295" text-anchor="middle" font-size="8" fill="#a78bfa80" transform="rotate(-18,270,290)">self-publishes</text>
+
+  <!-- Gateway → MQTT -->
+  <line x1="408" y1="392" x2="455" y2="100" stroke="#22d3a0" stroke-width="2" marker-end="url(#arr-g)" class="flow-line"/>
+
+  <!-- MQTT → Backend -->
+  <line x1="625" y1="96" x2="670" y2="87" stroke="#22d3a0" stroke-width="2" marker-end="url(#arr-g)" class="flow-line"/>
+  <line x1="625" y1="128" x2="670" y2="128" stroke="#a78bfa" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arr-b)"/>
+
+  <!-- ingest.go → sensor.go -->
+  <line x1="766" y1="104" x2="766" y2="110" stroke="#22d3a060" stroke-width="1.5" marker-end="url(#arr-g)"/>
+
+  <!-- sensor.go → alarm.go -->
+  <line x1="766" y1="144" x2="766" y2="150" stroke="#ef444060" stroke-width="1.5" marker-end="url(#arr-r)"/>
+
+  <!-- sensor.go → DB -->
+  <line x1="766" y1="180" x2="766" y2="206" stroke="#4f8ef760" stroke-width="1.5" marker-end="url(#arr-b)"/>
+
+  <!-- DB → hub -->
+  <line x1="766" y1="236" x2="766" y2="242" stroke="#22d3a060" stroke-width="1.5" marker-end="url(#arr-g)"/>
+
+  <!-- Backend hub → Dashboard -->
+  <line x1="862" y1="257" x2="900" y2="88" stroke="#22d3a0" stroke-width="2" marker-end="url(#arr-g)" class="flow-line-slow"/>
+  <text x="885" y="178" font-size="8" fill="#22d3a080" text-anchor="middle">WebSocket</text>
+
+  <!-- Alarm → Dashboard -->
+  <line x1="850" y1="175" x2="900" y2="110" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arr-r)"/>
+
+  <!-- Step labels -->
+  <text x="167" y="104" font-size="7.5" fill="#64748b" text-anchor="middle">① poll</text>
+  <text x="430" y="378" font-size="7.5" fill="#22d3a0" text-anchor="middle">② MQTT ingest</text>
+  <text x="650" y="80"  font-size="7.5" fill="#22d3a0" text-anchor="middle">③ subscribe</text>
+  <text x="766" y="460" font-size="7.5" fill="#22d3a0" text-anchor="middle">④ store → fan-out</text>
+  <text x="942" y="175" font-size="7.5" fill="#22d3a0" text-anchor="middle">⑤ live</text>
+
+  <!-- Alarm note bubble -->
+  <rect x="672" y="424" width="188" height="50" rx="8" fill="#ef444412" stroke="#ef444440" stroke-width="1"/>
+  <text x="766" y="440" text-anchor="middle" font-size="8.5" fill="#ef4444" font-weight="600">🔔 Alarm Evaluation</text>
+  <text x="766" y="454" text-anchor="middle" font-size="7.5" fill="#ef444480">Every reading checked against</text>
+  <text x="766" y="466" text-anchor="middle" font-size="7.5" fill="#ef444480">alarm_high / alarm_low + deadband</text>
+
+  <!-- Gateway fetch config note -->
+  <rect x="192" y="430" width="216" height="50" rx="8" fill="#4f8ef712" stroke="#4f8ef740" stroke-width="1"/>
+  <text x="300" y="446" text-anchor="middle" font-size="8.5" fill="#7ba7f0" font-weight="600">🔄 On Startup</text>
+  <text x="300" y="460" text-anchor="middle" font-size="7.5" fill="#4f8ef780">GET /v1/devices/{id} → channel_props</text>
+  <text x="300" y="472" text-anchor="middle" font-size="7.5" fill="#4f8ef780">Reload every 5 min</text>
+</svg>
+</div>
+</div>
+
+<!-- ═══════════════════════════  WRITE FLOW  ══════════════════════════ -->
+<div class="diagram" id="diagram-write">
+<div class="flow-wrap">
+<svg viewBox="0 0 1100 480" width="100%" style="max-width:1100px;display:block;margin:0 auto;">
+  <defs>
+    <marker id="arr-og" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#f97316"/>
+    </marker>
+    <marker id="arr-og2" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#f59e0b"/>
+    </marker>
+    <marker id="arr-bl2" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#4f8ef7"/>
+    </marker>
+  </defs>
+
+  <!-- Column headers -->
+  <text x="80"   y="28" text-anchor="middle" font-size="11" fill="#64748b" font-weight="600">OPERATOR</text>
+  <text x="290"  y="28" text-anchor="middle" font-size="11" fill="#64748b" font-weight="600">IOT26 BACKEND</text>
+  <text x="540"  y="28" text-anchor="middle" font-size="11" fill="#64748b" font-weight="600">MQTT BROKER</text>
+  <text x="750"  y="28" text-anchor="middle" font-size="11" fill="#64748b" font-weight="600">EDGE GATEWAY</text>
+  <text x="1000" y="28" text-anchor="middle" font-size="11" fill="#64748b" font-weight="600">PHYSICAL DEVICE</text>
+
+  <line x1="180"  y1="14" x2="180"  y2="460" stroke="#1e2535" stroke-width="1"/>
+  <line x1="420"  y1="14" x2="420"  y2="460" stroke="#1e2535" stroke-width="1"/>
+  <line x1="630"  y1="14" x2="630"  y2="460" stroke="#1e2535" stroke-width="1"/>
+  <line x1="870"  y1="14" x2="870"  y2="460" stroke="#1e2535" stroke-width="1"/>
+
+  <!-- Dashboard / curl -->
+  <rect x="10" y="50" width="155" height="64" rx="10" fill="#111827" stroke="#232942" stroke-width="1.5"/>
+  <text x="87" y="68" text-anchor="middle" font-size="10" fill="#94a3b8" font-weight="600">Dashboard / curl</text>
+  <rect x="20" y="74" width="135" height="20" rx="5" fill="#4f8ef718" stroke="#4f8ef750" stroke-width="1"/>
+  <text x="87" y="88" text-anchor="middle" font-size="7.5" fill="#7ba7f0" class="mono">POST /v1/devices/{id}/commands</text>
+  <text x="87" y="108" text-anchor="middle" font-size="8" fill="#64748b">action + params JSON</text>
+
+  <!-- Backend -->
+  <rect x="192" y="40" width="216" height="300" rx="12" fill="#111827" stroke="#232942" stroke-width="1.5"/>
+  <text x="300" y="60" text-anchor="middle" font-size="11" fill="#94a3b8" font-weight="600">device/server.go</text>
+
+  <rect x="205" y="68" width="190" height="36" rx="6" fill="#4f8ef712" stroke="#4f8ef750" stroke-width="1"/>
+  <text x="300" y="81" text-anchor="middle" font-size="8.5" fill="#7ba7f0" font-weight="500">Auth + Validate</text>
+  <text x="300" y="94" text-anchor="middle" font-size="7.5" fill="#4f8ef780">Clerk JWT · org owns device</text>
+
+  <rect x="205" y="110" width="190" height="36" rx="6" fill="#f9731612" stroke="#f9731650" stroke-width="1"/>
+  <text x="300" y="123" text-anchor="middle" font-size="8.5" fill="#f97316" font-weight="500">Validate Action</text>
+  <text x="300" y="136" text-anchor="middle" font-size="7.5" fill="#f9731680">allowed: write_register, reload_config</text>
+
+  <rect x="205" y="152" width="190" height="36" rx="6" fill="#f97316" stroke="#f9731690" stroke-width="1.3"/>
+  <text x="300" y="165" text-anchor="middle" font-size="8.5" fill="#fff" font-weight="600">mqttCli.Publish()</text>
+  <text x="300" y="178" text-anchor="middle" font-size="7.5" fill="#ffffffcc">devices/{id}/commands  QoS 1</text>
+
+  <!-- Command payload box -->
+  <rect x="205" y="196" width="190" height="80" rx="6" fill="#ffffff06" stroke="#ffffff15" stroke-width="1"/>
+  <text x="300" y="210" text-anchor="middle" font-size="8" fill="#64748b" font-weight="600">Supported Actions</text>
+  <text x="215" y="226" font-size="7.5" fill="#f97316">write_register</text>
+  <text x="215" y="238" font-size="7"   fill="#64748b80">→ slave, register, value (FC06)</text>
+  <text x="215" y="252" font-size="7.5" fill="#f97316">set_poll_interval</text>
+  <text x="215" y="264" font-size="7"   fill="#64748b80">→ interval (seconds)</text>
+  <text x="215" y="278" font-size="7.5" fill="#f97316">reload_config · restart</text>
+
+  <!-- MQTT broker -->
+  <rect x="452" y="50" width="160" height="80" rx="12" fill="#111827" stroke="#232942" stroke-width="1.5"/>
+  <text x="532" y="70" text-anchor="middle" font-size="11" fill="#94a3b8" font-weight="600">Broker :1883</text>
+  <rect x="464" y="78" width="136" height="24" rx="5" fill="#f9731618" stroke="#f9731650" stroke-width="1"/>
+  <text x="532" y="94" text-anchor="middle" font-size="8" fill="#f97316" class="mono">devices/{id}/commands</text>
+  <rect x="464" y="106" width="136" height="18" rx="5" fill="#ffffff08" stroke="#ffffff15" stroke-width="1"/>
+  <text x="532" y="119" text-anchor="middle" font-size="7.5" fill="#64748b">QoS 1 — queued if offline</text>
+
+  <!-- Gateway -->
+  <rect x="642" y="40" width="216" height="310" rx="12" fill="#111827" stroke="#232942" stroke-width="1.5"/>
+  <text x="750" y="60" text-anchor="middle" font-size="11" fill="#94a3b8" font-weight="600">IoT26Gateway._handle_command()</text>
+
+  <rect x="654" y="68" width="192" height="30" rx="6" fill="#4f8ef712" stroke="#4f8ef750" stroke-width="1"/>
+  <text x="750" y="82" text-anchor="middle" font-size="8.5" fill="#7ba7f0" font-weight="500">on_message fires (MQTT)</text>
+  <text x="750" y="95" text-anchor="middle" font-size="7.5" fill="#4f8ef780">parse JSON command</text>
+
+  <rect x="654" y="104" width="192" height="36" rx="6" fill="#f9731612" stroke="#f9731650" stroke-width="1"/>
+  <text x="750" y="117" text-anchor="middle" font-size="8.5" fill="#f97316" font-weight="500">reload_config</text>
+  <text x="750" y="130" text-anchor="middle" font-size="7.5" fill="#f9731680">re-fetch GET /v1/devices/{id}</text>
+
+  <rect x="654" y="146" width="192" height="36" rx="6" fill="#f9731612" stroke="#f9731650" stroke-width="1"/>
+  <text x="750" y="159" text-anchor="middle" font-size="8.5" fill="#f97316" font-weight="500">set_poll_interval</text>
+  <text x="750" y="172" text-anchor="middle" font-size="7.5" fill="#f9731680">update poll_override in loop</text>
+
+  <rect x="654" y="188" width="192" height="36" rx="6" fill="#f9731612" stroke="#f9731650" stroke-width="1"/>
+  <text x="750" y="201" text-anchor="middle" font-size="8.5" fill="#f97316" font-weight="500">restart</text>
+  <text x="750" y="214" text-anchor="middle" font-size="7.5" fill="#f9731680">os.execv() — hot restart</text>
+
+  <rect x="654" y="230" width="192" height="50" rx="6" fill="#f59e0b15" stroke="#f59e0b50" stroke-width="1"/>
+  <text x="750" y="246" text-anchor="middle" font-size="8.5" fill="#f59e0b" font-weight="500">write_register (Modbus)</text>
+  <text x="750" y="259" text-anchor="middle" font-size="7.5" fill="#f59e0b80">driver.handle_command(cmd)</text>
+  <text x="750" y="271" text-anchor="middle" font-size="7.5" fill="#f59e0b80">→ client.write_register(reg, val, slave)</text>
+
+  <rect x="654" y="286" width="192" height="50" rx="6" fill="#22d3a012" stroke="#22d3a050" stroke-width="1"/>
+  <text x="750" y="302" text-anchor="middle" font-size="8.5" fill="#22d3a0" font-weight="500">Other protocols</text>
+  <text x="750" y="315" text-anchor="middle" font-size="7.5" fill="#22d3a080">I²C: write_i2c_block_data()</text>
+  <text x="750" y="327" text-anchor="middle" font-size="7.5" fill="#22d3a080">SPI: xfer2() write command</text>
+
+  <!-- Physical devices -->
+  <rect x="890" y="50"  width="190" height="36" rx="8" fill="#4f8ef720" stroke="#4f8ef7" stroke-width="1.2"/>
+  <text x="985" y="63"  text-anchor="middle" font-size="10" fill="#4f8ef7" font-weight="600">Modbus Slave</text>
+  <text x="985" y="78"  text-anchor="middle" font-size="8"  fill="#7ba7f0">FC06 write_register → confirms</text>
+
+  <rect x="890" y="100" width="190" height="36" rx="8" fill="#f59e0b20" stroke="#f59e0b" stroke-width="1.2"/>
+  <text x="985" y="113" text-anchor="middle" font-size="10" fill="#f59e0b" font-weight="600">SPI Device</text>
+  <text x="985" y="128" text-anchor="middle" font-size="8"  fill="#fbc84f">xfer2 write command</text>
+
+  <rect x="890" y="150" width="190" height="36" rx="8" fill="#22d3a020" stroke="#22d3a0" stroke-width="1.2"/>
+  <text x="985" y="163" text-anchor="middle" font-size="10" fill="#22d3a0" font-weight="600">I²C Device</text>
+  <text x="985" y="178" text-anchor="middle" font-size="8"  fill="#7beecf">write_i2c_block_data()</text>
+
+  <!-- MQTT Direct alert subscribe -->
+  <rect x="890" y="200" width="190" height="50" rx="8" fill="#a78bfa20" stroke="#a78bfa" stroke-width="1.2"/>
+  <text x="985" y="215" text-anchor="middle" font-size="10" fill="#a78bfa" font-weight="600">ESP32 (MQTT Direct)</text>
+  <text x="985" y="229" text-anchor="middle" font-size="8"  fill="#c4adfd">subscribes to:</text>
+  <text x="985" y="242" text-anchor="middle" font-size="7.5" fill="#c4adfd" class="mono">alerts/{org}/{sensor}</text>
+
+  <!-- Arrows -->
+  <line x1="165" y1="82"  x2="192" y2="82"  stroke="#f97316" stroke-width="2" marker-end="url(#arr-og)"/>
+  <line x1="300" y1="188" x2="452" y2="90"  stroke="#f97316" stroke-width="2" class="flow-line" marker-end="url(#arr-og)"/>
+  <line x1="612" y1="90"  x2="642" y2="82"  stroke="#f97316" stroke-width="2" class="flow-line" marker-end="url(#arr-og)"/>
+
+  <line x1="300" y1="68"  x2="300" y2="68"  stroke="#4f8ef760" stroke-width="1"/>
+  <line x1="300" y1="104" x2="300" y2="110" stroke="#4f8ef760" stroke-width="1.5" marker-end="url(#arr-bl2)"/>
+  <line x1="300" y1="146" x2="300" y2="152" stroke="#f9731660" stroke-width="1.5" marker-end="url(#arr-og)"/>
+
+  <!-- Gateway → devices -->
+  <line x1="846" y1="253" x2="890" y2="68"  stroke="#f59e0b"  stroke-width="1.8" marker-end="url(#arr-og2)"/>
+  <line x1="846" y1="301" x2="890" y2="168" stroke="#22d3a0"  stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arr-og2)"/>
+  <!-- Alert to MQTT Direct device -->
+  <line x1="750" y1="350" x2="985" y2="200" stroke="#a78bfa"  stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#arr-og2)"/>
+  <text x="895" y="385" font-size="7.5" fill="#a78bfa80" text-anchor="middle" transform="rotate(-25,890,378)">alarm MQTT alert</text>
+
+  <!-- Step numbers -->
+  <text x="178" y="76"  font-size="7.5" fill="#f97316" text-anchor="middle">①</text>
+  <text x="436" y="85"  font-size="7.5" fill="#f97316" text-anchor="middle">② QoS1</text>
+  <text x="628" y="75"  font-size="7.5" fill="#f97316" text-anchor="middle">③</text>
+  <text x="870" y="95"  font-size="7.5" fill="#f59e0b" text-anchor="middle">④ FC06</text>
+</svg>
+</div>
+</div>
+
+<!-- ═══════════════════════════  FULL PICTURE  ════════════════════════ -->
+<div class="diagram" id="diagram-full">
+<div class="flow-wrap">
+<svg viewBox="0 0 1100 560" width="100%" style="max-width:1100px;display:block;margin:0 auto;">
+  <defs>
+    <marker id="fu-g" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto">
+      <polygon points="0 0, 7 2.5, 0 5" fill="#22d3a0"/>
+    </marker>
+    <marker id="fu-o" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto">
+      <polygon points="0 0, 7 2.5, 0 5" fill="#f97316"/>
+    </marker>
+    <marker id="fu-b" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto">
+      <polygon points="0 0, 7 2.5, 0 5" fill="#4f8ef7"/>
+    </marker>
+    <marker id="fu-r" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto">
+      <polygon points="0 0, 7 2.5, 0 5" fill="#ef4444"/>
+    </marker>
+    <marker id="fu-p" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto">
+      <polygon points="0 0, 7 2.5, 0 5" fill="#a78bfa"/>
+    </marker>
+  </defs>
+
+  <!-- Zones -->
+  <rect x="4"   y="36" width="162" height="400" rx="12" fill="#111520" stroke="#1e2535" stroke-width="1.2"/>
+  <text x="85"  y="52" text-anchor="middle" font-size="10" fill="#475569" font-weight="600">SENSORS</text>
+
+  <rect x="178" y="36" width="220" height="400" rx="12" fill="#111520" stroke="#1e2535" stroke-width="1.2"/>
+  <text x="288" y="52" text-anchor="middle" font-size="10" fill="#475569" font-weight="600">EDGE GATEWAY  (iot26-edge)</text>
+
+  <rect x="410" y="36" width="152" height="400" rx="12" fill="#111520" stroke="#1e2535" stroke-width="1.2"/>
+  <text x="486" y="52" text-anchor="middle" font-size="10" fill="#475569" font-weight="600">MQTT :1883</text>
+
+  <rect x="574" y="36" width="218" height="400" rx="12" fill="#111520" stroke="#1e2535" stroke-width="1.2"/>
+  <text x="683" y="52" text-anchor="middle" font-size="10" fill="#475569" font-weight="600">IOT26 BACKEND</text>
+
+  <rect x="804" y="36" width="290" height="400" rx="12" fill="#111520" stroke="#1e2535" stroke-width="1.2"/>
+  <text x="949" y="52" text-anchor="middle" font-size="10" fill="#475569" font-weight="600">DASHBOARD / API CLIENTS</text>
+
+  <!-- ── Sensor nodes (compact) ── -->
+  <g>
+    <rect x="14" y="64"  width="142" height="26" rx="6" fill="#4f8ef718" stroke="#4f8ef770" stroke-width="1"/>
+    <text x="85" y="81"  text-anchor="middle" font-size="8.5" fill="#7ba7f0" font-weight="500">Modbus TCP Slave</text>
+
+    <rect x="14" y="96"  width="142" height="26" rx="6" fill="#6366f118" stroke="#6366f170" stroke-width="1"/>
+    <text x="85" y="113" text-anchor="middle" font-size="8.5" fill="#9899f5" font-weight="500">Modbus RTU Slave</text>
+
+    <rect x="14" y="128" width="142" height="26" rx="6" fill="#22d3a018" stroke="#22d3a070" stroke-width="1"/>
+    <text x="85" y="145" text-anchor="middle" font-size="8.5" fill="#22d3a0" font-weight="500">I²C Sensor</text>
+
+    <rect x="14" y="160" width="142" height="26" rx="6" fill="#f59e0b18" stroke="#f59e0b70" stroke-width="1"/>
+    <text x="85" y="177" text-anchor="middle" font-size="8.5" fill="#f59e0b" font-weight="500">SPI Sensor</text>
+
+    <rect x="14" y="192" width="142" height="26" rx="6" fill="#f9731618" stroke="#f9731670" stroke-width="1"/>
+    <text x="85" y="209" text-anchor="middle" font-size="8.5" fill="#f97316" font-weight="500">Analog ADC Sensor</text>
+
+    <rect x="14" y="224" width="142" height="26" rx="6" fill="#ec489918" stroke="#ec489970" stroke-width="1"/>
+    <text x="85" y="241" text-anchor="middle" font-size="8.5" fill="#ec4899" font-weight="500">1-Wire DS18B20</text>
+
+    <rect x="14" y="256" width="142" height="36" rx="6" fill="#a78bfa18" stroke="#a78bfa70" stroke-width="1"/>
+    <text x="85" y="270" text-anchor="middle" font-size="8.5" fill="#a78bfa" font-weight="500">MQTT Direct (ESP32)</text>
+    <text x="85" y="285" text-anchor="middle" font-size="7.5" fill="#a78bfa80">self-publish</text>
+  </g>
+
+  <!-- ── Gateway internals ── -->
+  <rect x="188" y="64"  width="200" height="26" rx="6" fill="#ffffff08" stroke="#ffffff18" stroke-width="1"/>
+  <text x="288" y="81" text-anchor="middle" font-size="8" fill="#94a3b8" font-weight="500">Protocol Drivers  (read)</text>
+
+  <rect x="188" y="100" width="200" height="26" rx="6" fill="#ffffff08" stroke="#ffffff18" stroke-width="1"/>
+  <text x="288" y="117" text-anchor="middle" font-size="8" fill="#94a3b8" font-weight="500">apply_scale  (× scale + offset)</text>
+
+  <rect x="188" y="136" width="200" height="26" rx="6" fill="#22d3a012" stroke="#22d3a040" stroke-width="1"/>
+  <text x="288" y="153" text-anchor="middle" font-size="8" fill="#22d3a0" font-weight="500">publish_batch  →  ⬆ INGEST</text>
+
+  <rect x="188" y="200" width="200" height="26" rx="6" fill="#f9731612" stroke="#f9731640" stroke-width="1"/>
+  <text x="288" y="217" text-anchor="middle" font-size="8" fill="#f97316" font-weight="500">on_command handler  ⬇ CMD</text>
+
+  <rect x="188" y="236" width="200" height="26" rx="6" fill="#f9731612" stroke="#f9731640" stroke-width="1"/>
+  <text x="288" y="253" text-anchor="middle" font-size="8" fill="#f97316" font-weight="500">driver.handle_command</text>
+
+  <rect x="188" y="272" width="200" height="26" rx="6" fill="#4f8ef712" stroke="#4f8ef740" stroke-width="1"/>
+  <text x="288" y="289" text-anchor="middle" font-size="8" fill="#7ba7f0" font-weight="500">fetch_channels  (startup / 5min)</text>
+
+  <!-- Label separators in gateway -->
+  <text x="288" y="194" text-anchor="middle" font-size="7.5" fill="#475569" font-weight="600">── DOWNLINK ──────────────</text>
+
+  <!-- ── MQTT topics ── -->
+  <rect x="420" y="64"  width="132" height="26" rx="6" fill="#22d3a012" stroke="#22d3a040" stroke-width="1"/>
+  <text x="486" y="81" text-anchor="middle" font-size="7.5" fill="#22d3a0" class="mono">devices/{id}/ingest</text>
+
+  <rect x="420" y="210" width="132" height="26" rx="6" fill="#f9731612" stroke="#f9731640" stroke-width="1"/>
+  <text x="486" y="227" text-anchor="middle" font-size="7.5" fill="#f97316" class="mono">devices/{id}/commands</text>
+
+  <rect x="420" y="256" width="132" height="26" rx="6" fill="#a78bfa12" stroke="#a78bfa40" stroke-width="1"/>
+  <text x="486" y="273" text-anchor="middle" font-size="7.5" fill="#a78bfa" class="mono">iot26/sensors/+/readings</text>
+
+  <rect x="420" y="298" width="132" height="26" rx="6" fill="#ef444412" stroke="#ef444440" stroke-width="1"/>
+  <text x="486" y="315" text-anchor="middle" font-size="7.5" fill="#ef4444" class="mono">alerts/{org}/{sensor}</text>
+
+  <!-- ── Backend boxes ── -->
+  <rect x="584" y="64"  width="198" height="28" rx="6" fill="#4f8ef712" stroke="#4f8ef750" stroke-width="1"/>
+  <text x="683" y="82" text-anchor="middle" font-size="8" fill="#7ba7f0" font-weight="500">ingest/mqtt.go  (validate + route)</text>
+
+  <rect x="584" y="98"  width="198" height="28" rx="6" fill="#4f8ef712" stroke="#4f8ef750" stroke-width="1"/>
+  <text x="683" y="116" text-anchor="middle" font-size="8" fill="#7ba7f0" font-weight="500">sensor/server.go  →  TimescaleDB</text>
+
+  <rect x="584" y="132" width="198" height="28" rx="6" fill="#ef444412" stroke="#ef444450" stroke-width="1"/>
+  <text x="683" y="150" text-anchor="middle" font-size="8" fill="#ef4444" font-weight="500">alarm/evaluator.go</text>
+
+  <rect x="584" y="166" width="198" height="28" rx="6" fill="#22d3a012" stroke="#22d3a050" stroke-width="1"/>
+  <text x="683" y="184" text-anchor="middle" font-size="8" fill="#22d3a0" font-weight="500">dashboard/hub.go  (WebSocket)</text>
+
+  <rect x="584" y="210" width="198" height="28" rx="6" fill="#f9731612" stroke="#f9731650" stroke-width="1"/>
+  <text x="683" y="228" text-anchor="middle" font-size="8" fill="#f97316" font-weight="500">device/server.go  (POST /commands)</text>
+
+  <rect x="584" y="244" width="198" height="28" rx="6" fill="#f9731612" stroke="#f9731650" stroke-width="1"/>
+  <text x="683" y="262" text-anchor="middle" font-size="8" fill="#f97316" font-weight="500">mqttCli.Publish(commands)  QoS1</text>
+
+  <!-- ── Dashboard boxes ── -->
+  <rect x="814" y="64"  width="270" height="28" rx="6" fill="#22d3a012" stroke="#22d3a050" stroke-width="1"/>
+  <text x="949" y="82" text-anchor="middle" font-size="8" fill="#22d3a0" font-weight="500">Live Charts  (WebSocket)</text>
+
+  <rect x="814" y="98"  width="270" height="28" rx="6" fill="#ef444412" stroke="#ef444450" stroke-width="1"/>
+  <text x="949" y="116" text-anchor="middle" font-size="8" fill="#ef4444" font-weight="500">Alarm Panel  (GET /alarms + PATCH /ack)</text>
+
+  <rect x="814" y="132" width="270" height="28" rx="6" fill="#f9731612" stroke="#f9731650" stroke-width="1"/>
+  <text x="949" y="150" text-anchor="middle" font-size="8" fill="#f97316" font-weight="500">Command UI  (POST /commands)</text>
+
+  <rect x="814" y="166" width="270" height="28" rx="6" fill="#4f8ef712" stroke="#4f8ef750" stroke-width="1"/>
+  <text x="949" y="184" text-anchor="middle" font-size="8" fill="#7ba7f0" font-weight="500">curl / REST Client</text>
+
+  <!-- ═══ READ ARROWS (green) ═══ -->
+  <!-- Sensors → Gateway -->
+  <line x1="156" y1="77"  x2="188" y2="77"  stroke="#22d3a0" stroke-width="1.5" marker-end="url(#fu-g)"/>
+  <line x1="156" y1="109" x2="188" y2="90"  stroke="#22d3a0" stroke-width="1.5" marker-end="url(#fu-g)"/>
+  <line x1="156" y1="141" x2="188" y2="104" stroke="#22d3a0" stroke-width="1.5" marker-end="url(#fu-g)"/>
+  <line x1="156" y1="173" x2="188" y2="110" stroke="#22d3a0" stroke-width="1.5" marker-end="url(#fu-g)"/>
+  <line x1="156" y1="205" x2="188" y2="113" stroke="#22d3a0" stroke-width="1.5" marker-end="url(#fu-g)"/>
+  <line x1="156" y1="237" x2="188" y2="116" stroke="#22d3a0" stroke-width="1.5" marker-end="url(#fu-g)"/>
+
+  <!-- MQTT Direct → broker direct -->
+  <line x1="156" y1="270" x2="420" y2="270" stroke="#a78bfa" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#fu-p)"/>
+
+  <!-- Gateway read → scale → publish -->
+  <line x1="288" y1="90"  x2="288" y2="100" stroke="#22d3a060" stroke-width="1" marker-end="url(#fu-g)"/>
+  <line x1="288" y1="126" x2="288" y2="136" stroke="#22d3a060" stroke-width="1" marker-end="url(#fu-g)"/>
+
+  <!-- Gateway → ingest topic -->
+  <line x1="388" y1="149" x2="420" y2="77"  stroke="#22d3a0" stroke-width="1.8" class="flow-line" marker-end="url(#fu-g)"/>
+
+  <!-- ingest topic → backend -->
+  <line x1="552" y1="77"  x2="584" y2="78"  stroke="#22d3a0" stroke-width="1.8" class="flow-line" marker-end="url(#fu-g)"/>
+
+  <!-- backend chain -->
+  <line x1="683" y1="92"  x2="683" y2="98"  stroke="#4f8ef760" stroke-width="1" marker-end="url(#fu-b)"/>
+  <line x1="683" y1="126" x2="683" y2="132" stroke="#ef444460" stroke-width="1" marker-end="url(#fu-r)"/>
+  <line x1="683" y1="160" x2="683" y2="166" stroke="#22d3a060" stroke-width="1" marker-end="url(#fu-g)"/>
+
+  <!-- hub → dashboard -->
+  <line x1="782" y1="180" x2="814" y2="78"  stroke="#22d3a0" stroke-width="1.8" class="flow-line-slow" marker-end="url(#fu-g)"/>
+
+  <!-- alarm → alarm topic → edge (optional) -->
+  <line x1="780" y1="146" x2="802" y2="146" stroke="#ef4444" stroke-width="1" marker-end="url(#fu-r)"/>
+  <line x1="802" y1="146" x2="802" y2="311" stroke="#ef4444" stroke-width="1"/>
+  <line x1="802" y1="311" x2="552" y2="311" stroke="#ef4444" stroke-width="1" marker-end="url(#fu-r)"/>
+
+  <!-- alarm topic → dashboard alarm panel -->
+  <line x1="552" y1="311" x2="814" y2="112" stroke="#ef4444" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#fu-r)"/>
+
+  <!-- mqtt direct → backend -->
+  <line x1="552" y1="270" x2="584" y2="84"  stroke="#a78bfa" stroke-width="1.2" stroke-dasharray="3 3" marker-end="url(#fu-p)"/>
+
+  <!-- ═══ WRITE ARROWS (orange) ═══ -->
+  <!-- Dashboard → backend -->
+  <line x1="814" y1="146" x2="784" y2="225" stroke="#f97316" stroke-width="1.8" marker-end="url(#fu-o)"/>
+
+  <!-- Backend → commands topic -->
+  <line x1="584" y1="257" x2="552" y2="223" stroke="#f97316" stroke-width="1.8" class="flow-line" marker-end="url(#fu-o)"/>
+
+  <!-- commands topic → gateway -->
+  <line x1="420" y1="223" x2="388" y2="217" stroke="#f97316" stroke-width="1.8" class="flow-line" marker-end="url(#fu-o)"/>
+
+  <!-- gateway cmd → sensors -->
+  <line x1="188" y1="249" x2="156" y2="109" stroke="#f97316" stroke-width="1.5" marker-end="url(#fu-o)"/>
+  <line x1="188" y1="252" x2="156" y2="173" stroke="#f59e0b" stroke-width="1.2" stroke-dasharray="3 3" marker-end="url(#fu-o)"/>
+  <line x1="188" y1="255" x2="156" y2="205" stroke="#22d3a0" stroke-width="1.2" stroke-dasharray="3 3" marker-end="url(#fu-g)"/>
+
+  <!-- Fetch config annotation -->
+  <line x1="288" y1="282" x2="683" y2="228" stroke="#4f8ef7" stroke-width="1" stroke-dasharray="3 4"/>
+  <text x="480" y="344" text-anchor="middle" font-size="7.5" fill="#4f8ef780">GET /v1/devices/{id}  (startup + reload)</text>
+
+  <!-- Legend arrows -->
+  <g transform="translate(30, 450)">
+    <line x1="0" y1="8" x2="30" y2="8" stroke="#22d3a0" stroke-width="2" marker-end="url(#fu-g)"/>
+    <text x="35" y="12" font-size="8.5" fill="#22d3a0">Read / Uplink</text>
+    <line x1="140" y1="8" x2="170" y2="8" stroke="#f97316" stroke-width="2" marker-end="url(#fu-o)"/>
+    <text x="175" y="12" font-size="8.5" fill="#f97316">Write / Downlink</text>
+    <line x1="300" y1="8" x2="330" y2="8" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="4 2" marker-end="url(#fu-r)"/>
+    <text x="335" y="12" font-size="8.5" fill="#ef4444">Alarm Alert</text>
+    <line x1="430" y1="8" x2="460" y2="8" stroke="#a78bfa" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#fu-p)"/>
+    <text x="465" y="12" font-size="8.5" fill="#a78bfa">MQTT Direct (self-publish)</text>
+  </g>
+</svg>
+</div>
+</div>
+
+<!-- ── Protocol info cards ─────────────────────────────────────────── -->
+<div class="cards">
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-dot" style="background:var(--modbus-tcp)"></div>
+      <div class="card-title">Modbus TCP</div>
+    </div>
+    <div class="card-row"><span class="card-label label-read">READ</span>driver polls FC03/FC04 → multi-register → int decode → scale</div>
+    <div class="card-row"><span class="card-label label-write">WRITE</span>FC06 write_register or FC10 write_registers via downlink command</div>
+    <div class="card-row"><span class="card-label label-note">PORT</span>502 default, simulator uses 5020</div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-dot" style="background:var(--modbus-rtu)"></div>
+      <div class="card-title">Modbus RTU (RS-485)</div>
+    </div>
+    <div class="card-row"><span class="card-label label-read">READ</span>Serial frame FC03/FC04 → CRC check → registers → scale</div>
+    <div class="card-row"><span class="card-label label-write">WRITE</span>FC06 via serial — write_register(reg, val, slave)</div>
+    <div class="card-row"><span class="card-label label-note">BUS</span>/dev/ttyUSB0, 9600 8N1, up to 32 slaves</div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-dot" style="background:var(--i2c)"></div>
+      <div class="card-title">I²C</div>
+    </div>
+    <div class="card-row"><span class="card-label label-read">READ</span>write_i2c_block_data(cmd) → wait read_delay_ms → read N bytes → MSB decode</div>
+    <div class="card-row"><span class="card-label label-write">WRITE</span>i2c_write command (config registers, reset, forced mode)</div>
+    <div class="card-row"><span class="card-label label-note">BUS</span>/dev/i2c-1, up to 128 addresses on one bus</div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-dot" style="background:var(--spi)"></div>
+      <div class="card-title">SPI</div>
+    </div>
+    <div class="card-row"><span class="card-label label-read">READ</span>xfer2(cmd bytes) → clock in response → bit_order decode → raw float</div>
+    <div class="card-row"><span class="card-label label-write">WRITE</span>xfer2(write command) — configuration / mode register writes</div>
+    <div class="card-row"><span class="card-label label-note">PIN</span>MOSI/MISO/CLK/CS, up to 1 device per CE pin</div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-dot" style="background:var(--analog)"></div>
+      <div class="card-title">Analog ADC (MCP3208)</div>
+    </div>
+    <div class="card-row"><span class="card-label label-read">READ</span>SPI xfer2 → 12-bit raw count → scale_factor + offset → engineering value</div>
+    <div class="card-row"><span class="card-label label-write">WRITE</span>N/A — ADC is read-only; write to DAC separately if needed</div>
+    <div class="card-row"><span class="card-label label-note">USE</span>4–20 mA, NTC thermistor, potentiometer, LDR</div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-dot" style="background:var(--onewire)"></div>
+      <div class="card-title">1-Wire (DS18B20)</div>
+    </div>
+    <div class="card-row"><span class="card-label label-read">READ</span>cat /sys/bus/w1/devices/{rom}/temperature → millidegrees → scale 0.001</div>
+    <div class="card-row"><span class="card-label label-write">WRITE</span>N/A — DS18B20 is read-only (temp only)</div>
+    <div class="card-row"><span class="card-label label-note">BUS</span>GPIO4, single wire, up to ~20 probes, kernel driver</div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-dot" style="background:var(--mqtt)"></div>
+      <div class="card-title">MQTT Direct</div>
+    </div>
+    <div class="card-row"><span class="card-label label-read">READ</span>ESP32 self-publishes → broker → driver caches → json_path extract</div>
+    <div class="card-row"><span class="card-label label-write">WRITE</span>Alarm alerts MQTT → ESP32 subscribes alerts/{org}/{sensor} → LED/buzzer</div>
+    <div class="card-row"><span class="card-label label-note">NOTE</span>poll_interval = 0 for push-mode. No gateway polling needed.</div>
+  </div>
+
+</div>
+
+<script>
+  function show(tab) {
+    document.querySelectorAll('.diagram').forEach(d => d.classList.remove('visible'));
+    document.querySelectorAll('.tab').forEach(t => {
+      t.classList.remove('active-read', 'active-write', 'active-full');
+    });
+    document.getElementById('diagram-' + tab).classList.add('visible');
+    const btn = document.getElementById('tab-' + tab);
+    if (tab === 'read')  btn.classList.add('active-read');
+    if (tab === 'write') btn.classList.add('active-write');
+    if (tab === 'full')  btn.classList.add('active-full');
+  }
+  // Set initial tab button state
+  document.getElementById('tab-read').classList.add('active-read');
+</script>
+</body>
+</html>

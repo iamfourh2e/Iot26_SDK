@@ -1,0 +1,34 @@
+[project]
+name = "iot26-edge"
+version = "0.1.0"
+description = "IoT26 edge SDK — protocol drivers + gateway for Raspberry Pi / Linux"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "paho-mqtt>=2.0",
+    "requests>=2.31",
+]
+
+[project.optional-dependencies]
+modbus   = ["pymodbus>=3.6"]
+i2c      = ["smbus2>=0.4"]
+spi      = ["spidev>=3.6"]
+all      = ["pymodbus>=3.6", "smbus2>=0.4", "spidev>=3.6"]
+
+[project.scripts]
+iot26-gateway = "iot26_edge.gateway:main"
+
+[build-system]
+requires      = ["setuptools>=68"]
+build-backend = "setuptools.backends.legacy:build"
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.uv]
+dev-dependencies = ["ruff", "pytest"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths  = ["tests"]
