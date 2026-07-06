@@ -42,9 +42,10 @@ import (
 
 // Reading is a single sensor measurement to publish.
 type Reading struct {
-	SensorID string  `json:"sensor_id"`
-	Value    float64 `json:"value"`
-	Unit     string  `json:"unit"`
+	SensorID     string  `json:"sensor_id"`
+	Value        float64 `json:"value"`
+	Unit         string  `json:"unit,omitempty"`
+	MetadataJSON string  `json:"metadata_json,omitempty"` // Arbitrary JSON blob
 }
 
 // Command is a downlink message received from IoT26.

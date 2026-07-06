@@ -58,9 +58,10 @@
  * @brief One sensor reading to publish.
  */
 struct IoT26Reading {
-    const char* sensor_id;  ///< UUID or name matching IoT26 sensor config
-    float       value;      ///< Scaled engineering value
-    const char* unit;       ///< Unit string, e.g. "°C", "%RH", "Pa"
+    const char* sensor_id;    ///< UUID or name matching IoT26 sensor config
+    float       value;        ///< Scaled engineering value
+    const char* unit;         ///< Unit string, e.g. "°C", "%RH", "Pa"
+    const char* metadata_json; ///< Optional JSON metadata (pass nullptr or "" to omit)
 };
 
 // ── Client class ──────────────────────────────────────────────────────────────

@@ -12,17 +12,27 @@ class Iot26Reading {
   /// Unit string, e.g. '°C', '%RH', 'Pa'.
   final String unit;
 
+  /// Arbitrary JSON metadata blob.
+  final String? metadataJson;
+
   const Iot26Reading({
     required this.sensorId,
     required this.value,
     required this.unit,
+    this.metadataJson,
   });
 
-  Map<String, dynamic> toJson() => {
-        'sensor_id': sensorId,
-        'value': value,
-        'unit': unit,
-      };
+  Map<String, dynamic> toJson() {
+    final map = <String, dynamic>{
+      'sensor_id': sensorId,
+      'value': value,
+      'unit': unit,
+    };
+    if (metadataJson != null) {
+      map['metadata_json'] = metadataJson;
+    }
+    return map;
+  }
 
   @override
   String toString() => 'Iot26Reading($sensorId=$value $unit)';

@@ -73,7 +73,12 @@ bool IoT26Client::publishReadings(const IoT26Reading* readings, size_t count) {
         JsonObject r = arr.createNestedObject();
         r["sensor_id"] = readings[i].sensor_id;
         r["value"]     = readings[i].value;
-        r["unit"]      = readings[i].unit;
+        if (readings[i].unit && strlen(readings[i].unit) > 0) {
+            r["unit"] = readings[i].unit;
+        }
+        if (readings[i].metadata_json && strlen(readings[i].metadata_json) > 0) {
+            r["metadata_json"] = readings[i].metadata_json;
+        }
     }
 
     // Serialise to a stack buffer (up to 1 KB) or heap

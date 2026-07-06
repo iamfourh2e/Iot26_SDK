@@ -33,16 +33,16 @@ IoT26Client iot26(DEVICE_ID, DEVICE_TOKEN, MQTT_BROKER, MQTT_PORT);
 unsigned long lastPublish = 0;
 const long publishInterval = 5000; // publish every 5 seconds
 uint8_t RELAY_I2C_ADDR = 0x20;
-
 // Dynamic Sensor Configuration extracted from JSON
 String buttonSensorId = "";
 int buttonPin = -1;
+String valveSensorId = ""; // Dynamically populated from backend config
 
 // ── Fetch Gateway Config via REST API ────────────────────────────
 void fetchDeviceConfig() {
   HTTPClient http;
-  String url = "https://<iot26_url>/v1/devices/" +
-               String(DEVICE_ID) + "/config";
+  String url =
+      "https://<iot26_url>/v1/devices/" + String(DEVICE_ID) + "/config";
 
   // Note: We pass secureClient to use the setInsecure() configuration
   http.begin(secureClient, url);
@@ -80,20 +80,28 @@ void fetchDeviceConfig() {
         const char *name = sensor["name"];
 
         JsonObject channelProps = sensor["channel_props"];
-        
-        Serial.printf(" - Sensor: %s (ID: %s)\n", name ? name : "Unknown", sensorId);
+
+        Serial.printf(" - Sensor: %s (ID: %s)\n", name ? name : "Unknown",
+                      sensorId);
 
         // Check if this sensor is our Button
-        if (String(name).equalsIgnoreCase("button") || String(name).equalsIgnoreCase("push button")) {
+        if (String(name).equalsIgnoreCase("button") ||
+            String(name).equalsIgnoreCase("push button")) {
           buttonSensorId = sensorId;
-          buttonPin = channelProps["pin"] | 4; // Default to GPIO 4 if not provided
-          
+          buttonPin =
+              channelProps["pin"] | 4; // Default to GPIO 4 if not provided
           pinMode(buttonPin, INPUT_PULLUP);
           Serial.printf("   -> Configured as Button on GPIO %d\n", buttonPin);
+        } else if (String(name).equalsIgnoreCase("valve") ||
+                   String(name).equalsIgnoreCase("relay") ||
+                   String(name).equalsIgnoreCase("switch")) {
+          valveSensorId = sensorId;
+          Serial.printf("   -> Mapped Valve to sensor ID: %s\n", valveSensorId.c_str());
         } else {
           int slaveAddr = channelProps["slave_addr"] | 1;
           int modbusReg = channelProps["register"] | 0;
-          Serial.printf("   -> Slave: %d, Register: %d\n", slaveAddr, modbusReg);
+          Serial.printf("   -> Slave: %d, Register: %d\n", slaveAddr,
+                        modbusReg);
         }
       }
     } else {
@@ -170,6 +178,15 @@ void setup() {
         int state = custom["valve"];
         Serial.printf("-> Toggle Switch/Valve: %s\n", state ? "ON" : "OFF");
         // digitalWrite(RELAY_PIN, state ? HIGH : LOW);
+        
+        // PUBLISH UPLINK: Report the new state back to the backend
+        // This makes sure the Dashboard UI widget instantly updates its visual state
+        if (valveSensorId != "") {
+          IoT26Reading uplink[] = {{valveSensorId.c_str(), (float)state, "state"}};
+          iot26.publishReadings(uplink, 1);
+        } else {
+          Serial.println("-> Cannot publish valve uplink: No sensor mapped from config!");
+        }
       }
       if (!custom["dimmer"].isNull()) {
         int level = custom["dimmer"];
@@ -227,19 +244,18 @@ void loop() {
 
     if ((millis() - lastDebounceTime) > debounceDelay) {
       static int buttonState = HIGH;
-      
+
       // If the state has stabilized to a new state
       if (reading != buttonState) {
         buttonState = reading;
-        
+
         // Button Pressed (Assuming INPUT_PULLUP, LOW = pressed)
         if (buttonState == LOW) {
-          Serial.println("\n[HARDWARE] Button Pressed! Publishing telemetry...");
-          
+          Serial.println(
+              "\n[HARDWARE] Button Pressed! Publishing telemetry...");
+
           // Use the dynamic sensor ID fetched from the API
-          IoT26Reading readings[] = {
-              {buttonSensorId.c_str(), 1.0f, "click"}
-          };
+          IoT26Reading readings[] = {{buttonSensorId.c_str(), 1.0f, "click"}};
 
           bool success = iot26.publishReadings(readings, 1);
           if (success) {

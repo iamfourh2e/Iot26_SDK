@@ -36,8 +36,8 @@
  *
  *   void loop() {
  *     IoT26Reading readings[] = {
- *       {"temp_sensor_id",     25.3f, "°C"},
- *       {"humidity_sensor_id", 61.0f, "%"},
+ *       {"temp_sensor_id",     25.3f, "°C", nullptr},
+ *       {"humidity_sensor_id", 61.0f, "%",  "{\"room\": \"A1\"}"},
  *     };
  *     iot26.publishReadings(readings, 2);
  *     iot26.loop();
@@ -58,9 +58,10 @@
  * @brief One sensor reading to publish.
  */
 struct IoT26Reading {
-    const char* sensor_id;  ///< UUID or name matching IoT26 sensor config
-    float       value;      ///< Scaled engineering value
-    const char* unit;       ///< Unit string, e.g. "°C", "%RH", "Pa"
+    const char* sensor_id;    ///< UUID or name matching IoT26 sensor config
+    float       value;        ///< Scaled engineering value
+    const char* unit;         ///< Unit string, e.g. "°C", "%RH", "Pa"
+    const char* metadataJson; ///< Optional JSON metadata (pass nullptr or "" to omit)
 };
 
 // ── Client class ──────────────────────────────────────────────────────────────
